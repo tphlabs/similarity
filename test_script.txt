@@ -1,0 +1,32 @@
+// Files
+Documents,3000			// the number needs to be greater than the number of documents included in the comparison.
+ReportFolder,CopyFindReport // this defines where the results will be printed
+Document,1,guides
+Document,2,semester_w
+Document,3,oldReports_w
+// if folder 3 of old reports exist, add the command "Document,3,oldReports"
+//
+// comparison parameters, further explanation in "http://plagiarism.bloomfieldmedia.com/wordpress/software/interesting-things-wcopyfind-can-do/"
+PhraseLength,4		// default 6
+WordThreshold,80		// default 100
+SkipLength,20		// default 20
+MismatchTolerance,2	// default 2
+MismatchPercentage,80	// default 80
+BriefReport,0		// default 0 = No/False (note that: 1 = Yes/True)
+IgnoreCase,0		// default 0 = No/False (note that: 1 = Yes/True)
+IgnoreNumbers,0		// default 0 = No/False (note that: 1 = Yes/True)
+IgnoreOuterPunctuation,0	// default 0 = No/False (note that: 1 = Yes/True)
+IgnorePunctuation,0	// default 0 = No/False (note that: 1 = Yes/True)
+SkipLongWords,0		// default 0 = No/False (note that: 1 = Yes/True)
+SkipNonwords,0		// default 0 = No/False (note that: 1 = Yes/True)
+//
+// Defining language of comparison
+Locale,Hebrew
+//
+// Preforming comparison
+PrepareForComparisons
+//Compare,2,2
+Compare,2,3
+// if folder 3 of old reports exist, add the command "Compare,2,3"
+//
+Done
