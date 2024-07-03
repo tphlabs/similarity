@@ -14,6 +14,11 @@ import pypdf, codecs
 import datetime
 
 
+
+root_folder = 'C:/Users/Evgeny/Downloads/LabCopyFind/LabCopyFind'
+work_folder = f'{root_folder}/resistance_w'
+
+
 def get_pdf_text(filename):
     reader = pypdf.PdfReader(filename)
     text = [page.extract_text() for page in reader.pages]
@@ -22,13 +27,13 @@ def get_pdf_text(filename):
 def get_text(filename):
     if filename.endswith('.pdf'):
         text = get_pdf_text(filename)
-    else:
+    elif filename.endswith('.csv'):
         with open(filename, 'r') as f:
             text = f.read()
+    else:
+        text = ''
     return text
 
-root_folder = 'C:/Users/Evgeny/Downloads/LabCopyFind/LabCopyFind'
-work_folder = f'{root_folder}/temp'
 
 
 def tokenize(text, with_whitespaces=False):
@@ -65,6 +70,10 @@ def get_attributes(file_path):
     # excel-ready version
     url_excel = f'"=HYPERLINK( ""{file_path}"", ""{filename}"")"'
     
+    txt = get_text(file_path)
+    txt = preprocess(txt)
+    txt_size = len(txt.split())
+    
     result = {}
     result['semester_id'] = semester_id
     result['submission_id'] = submission_id
@@ -74,28 +83,42 @@ def get_attributes(file_path):
     result['url_excel'] = url_excel
     result['file_path'] = file_path
     result['filename'] = filename
+    result['txt'] = txt
+    result['size_words'] = txt_size
     return result
 
 def build():
-    attributes = []
-    texts = []
+    attributes = {}
     for dirpath, dirnames, filenames in os.walk(work_folder):
         for filename in filenames:
-            if filename.endswith('.pdf'):
-                file_path = f'{dirpath}/{filename}'
-                txt = get_text(file_path)
-                txt = preprocess(txt)
-                texts.append(txt)
-                attr = get_attributes(file_path)
-                
-                attr["size_words"] = len(txt.split()) # tokens count
-                attributes.append( attr )
-                
-                print('.', end='')
-    print('Processed ', len(texts))
-    return attributes, texts
+            file_path = f'{dirpath}/{filename}'
+            attr = get_attributes(file_path)
+            
+            submission_id = attr['submission_id']
+            
+            if submission_id not in attributes.keys():
+                # submission encountered for the first time
+                attributes[submission_id] = attr
+            else:
+                # new file in existing submission
+                # leave the lates timestamp
+                tsnew = attr['timestamp']
+                tsold = attributes[submission_id]['timestamp']
+                if tsnew > tsold:
+                    attributes[submission_id]['timestamp'] = tsnew
+                # add filename
+                attributes[submission_id]['filename'] += ', '+ attr['filename']
+                # add text and size
+                attributes[submission_id]['txt'] += '\n' +attr['txt']
+                attributes[submission_id]['size_words'] += attr['size_words']
+                # to-do : do multiple url links
+            
+            print('.', end='')
+    print('Processed ', len(attributes))
+    return attributes
 
-attributes, texts = build()        
+attributes = build()        
+texts = [attributes[sid]["txt"] for sid in attributes.keys()]
 
 
 #%%
@@ -112,34 +135,36 @@ report = 'semester \t submission_id \t student_name \t when_submitted \t filenam
           semester \t submission_id \t student_name \t when_submitted \t filename \t url \t size_words \t\
           cos_distance \t days_between \n'
 
-THRESHOLD = 0.75 # similarity treshold
+THRESHOLD = 0.25 # similarity treshold
 MIN_DAYS_DISTANCE = 1 # minumum time between submissions
 
 semesters_checked = ['2023.01']
-semesters_referenced = ['2022.02', '2022.03']
+semesters_referenced = ['2022.02', '2022.03', '2023.01']
 
-for i in range(0, N):
+for i, keyi in enumerate(attributes.keys()):
 
-    attr_i = attributes[i]
+    attr_i = attributes[keyi]
     
     if attr_i["semester_id"] not in semesters_checked:
         continue
 
-    for j in range(0, N):
+    for j, keyj in enumerate(attributes.keys()):
         
         cos_distance = similarity[i,j]
         if cos_distance < THRESHOLD:
             continue;
 
-        attr_j = attributes[j]
+        attr_j = attributes[keyj]
         if attr_j["semester_id"] not in semesters_referenced:
             continue
 
         ts1, ts2 = attr_i["timestamp"], attr_j["timestamp"]
-        days_distance = (ts1 - ts2) / 60 /60 /24 
+        days_distance = (ts1 - ts2) / 60 /60 /24
+        if days_distance < 0:
+            days_distance = -days_distance
         
         if abs(days_distance) < MIN_DAYS_DISTANCE:
-            pass
+            continue
             
         dt1, dt2 = str(datetime.datetime.fromtimestamp(ts1)), \
                    str(datetime.datetime.fromtimestamp(ts2))
