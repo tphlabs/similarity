@@ -9,6 +9,11 @@ import os, shutil
 import zipfile
 from time import mktime
 
+root_folder = 'C:/Users/Evgeny/OneDrive - Technion/Documents/similarity'
+source_folder = f'{root_folder}/downloads/pendulum'
+work_folder = f'{root_folder}/unpacked'
+
+
 
 def unpack_inplace(zippedFile):
     
@@ -32,7 +37,11 @@ def unpack_inplace(zippedFile):
     return
         
 
-def copy_unpack(archive, source_folder, destination_folder):
+def copy_unpack(archive, source_folder, work_folder):
+    
+    semester_id = archive.split('_')[0]  # 2023.01_rmp.zip
+    destination_folder = f'{work_folder}/{semester_id}'
+    
     if not os.path.exists(destination_folder):
         os.makedirs(destination_folder)
         
@@ -41,9 +50,17 @@ def copy_unpack(archive, source_folder, destination_folder):
     return
 
 
-root_folder = 'C:/Users/Evgeny/Downloads/LabCopyFind/LabCopyFind'
-source_folder = f'{root_folder}/downloads/resistance'
-work_folder = f'{root_folder}/resistance_w'
+
+
+archive = '2023.01_rmp.zip'
+#copy_unpack(archive, source_folder, f'{work_folder}/{2023.01}')
+copy_unpack(archive, source_folder, work_folder)
+
+archive = '2023.02_rmp.zip'
+#copy_unpack(archive, source_folder, f'{work_folder}/{2023.02}')
+copy_unpack(archive, source_folder, work_folder)
+
+
 
 '''
 archive = '2022.03_pdfInd.zip'
@@ -54,7 +71,7 @@ copy_unpack(archive, source_folder, f'{work_folder}/{2022.02}')
 
 archive = '2023.01_pdfInd.zip'
 copy_unpack(archive, source_folder, f'{work_folder}/{2023.01}')
-'''   
+
 
 # workfiles csv
 archive = '2022.02_wR.zip'
@@ -75,3 +92,4 @@ copy_unpack(archive, source_folder, f'{work_folder}/{2022.03}')
 
 archive = '2023.01_pdfR.zip'
 copy_unpack(archive, source_folder, f'{work_folder}/{2023.01}')
+'''
