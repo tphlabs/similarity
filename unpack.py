@@ -10,7 +10,7 @@ import zipfile
 from time import mktime
 
 root_folder = 'C:/Users/Evgeny/OneDrive - Technion/Documents/similarity'
-source_folder = f'{root_folder}/downloads/pendulum'
+source_folder = f'{root_folder}/submissions/resistance'
 work_folder = f'{root_folder}/unpacked'
 
 
@@ -52,6 +52,7 @@ def copy_unpack(archive, source_folder, work_folder):
 
 
 
+'''
 archive = '2023.01_rmp.zip'
 #copy_unpack(archive, source_folder, f'{work_folder}/{2023.01}')
 copy_unpack(archive, source_folder, work_folder)
@@ -61,8 +62,6 @@ archive = '2023.02_rmp.zip'
 copy_unpack(archive, source_folder, work_folder)
 
 
-
-'''
 archive = '2022.03_pdfInd.zip'
 copy_unpack(archive, source_folder, f'{work_folder}/{2022.03}')
 
@@ -71,7 +70,7 @@ copy_unpack(archive, source_folder, f'{work_folder}/{2022.02}')
 
 archive = '2023.01_pdfInd.zip'
 copy_unpack(archive, source_folder, f'{work_folder}/{2023.01}')
-
+'''
 
 # workfiles csv
 archive = '2022.02_wR.zip'
@@ -92,4 +91,3 @@ copy_unpack(archive, source_folder, f'{work_folder}/{2022.03}')
 
 archive = '2023.01_pdfR.zip'
 copy_unpack(archive, source_folder, f'{work_folder}/{2023.01}')
-'''

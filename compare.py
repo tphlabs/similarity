@@ -14,12 +14,18 @@ import pypdf, codecs
 import datetime
 
 root_folder = 'C:/Users/Evgeny/OneDrive - Technion/Documents/similarity'
-source_folder = f'{root_folder}/downloads/pendulum'
+source_folder = f'{root_folder}/submissions/resistance'
 work_folder = f'{root_folder}/unpacked'
 report_folder = f'{root_folder}/report'
 
-NGRAM_min = 2
-NGRAM_max = 5
+NGRAM_min, NGRAM_max = 2, 5
+ 
+THRESHOLD = 0.25 # similarity treshold
+MIN_DAYS_DISTANCE = 1 # minumum time between submissions
+
+
+semesters_checked = ['2023.01']
+semesters_referenced = ['2022.01', '2022.02']
 
 
 
@@ -42,7 +48,7 @@ def tokenize(text, with_whitespaces=False):
 
 
 def preprocess(text):
-    """Preprocesses the text by removing non-alphabetic characters, stop words, and stemming the words."""
+    """Preprocesses the text by removing  stop words, and stemming the words."""
     stop_words = set(stopwords.words('hebrew'))
 
     tokens = tokenize(text.lower())
@@ -152,11 +158,7 @@ report = 'semester \t submission_id \t student_name \t when_submitted \t filenam
           semester \t submission_id \t student_name \t when_submitted \t filename \t size_words \t\
           cos_distance \t days_between \n'
 
-THRESHOLD = 0.25 # similarity treshold
-MIN_DAYS_DISTANCE = 1 # minumum time between submissions
 
-semesters_checked = ['2023.02']
-semesters_referenced = ['2023.01', '2023.02']
 
 # clean up report folder
 if os.path.exists(report_folder):
