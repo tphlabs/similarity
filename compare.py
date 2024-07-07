@@ -12,31 +12,88 @@ from sklearn.metrics.pairwise import cosine_similarity
 from hebrew_tokenizer.tokenizer import tokenizer
 import pypdf, codecs
 import datetime
+import zipfile
+from time import mktime
 
-root_folder = 'C:/Users/Evgeny/OneDrive - Technion/Documents/similarity'
-source_folder = f'{root_folder}/submissions/resistance'
+
+root_folder = 'C:/Users/Evgeny/Documents/similarity'
+source_folder = f'{root_folder}/submissions/pendulum'
 work_folder = f'{root_folder}/unpacked'
 report_folder = f'{root_folder}/report'
 
 NGRAM_min, NGRAM_max = 2, 5
  
-THRESHOLD = 0.25 # similarity treshold
+THRESHOLD = 0.50 # similarity treshold
 MIN_DAYS_DISTANCE = 1 # minumum time between submissions
 
+#%% Unpacking
 
-semesters_checked = ['2023.01']
-semesters_referenced = ['2022.01', '2022.02']
+def unpack_inplace(zippedFile):
+    
+    path = os.path.dirname(zippedFile)
+    
+    with zipfile.ZipFile(zippedFile, 'r') as zfile:
+
+        for zi in zfile.infolist():
+            
+            extractedfile = zfile.extract(zi,path=path)
+            
+            # preserve creation time
+            date_time = mktime(zi.date_time + (0, 0, -1))
+            os.utime(extractedfile, (date_time, date_time))
+            
+            if extractedfile.endswith('.zip'):
+                unpack_inplace(extractedfile)
+
+    os.remove(zippedFile)
+    
+    return
+        
+
+def copy_unpack(archive, source_folder, work_folder):
+    
+    semester_id = archive.split('_')[0]  # 2023.01_rmp.zip
+    destination_folder = f'{work_folder}/{semester_id}'
+    
+    if not os.path.exists(destination_folder):
+        os.makedirs(destination_folder)
+        
+    shutil.copy2(f'{source_folder}/{archive}', f'{destination_folder}/{archive}')
+    unpack_inplace(f'{destination_folder}/{archive}')
+    return
 
 
+# clean up work folder
+if os.path.exists(work_folder):
+    shutil.rmtree(work_folder)
+os.makedirs(work_folder)
+
+print('Unpacking..')
+archives = [file for file in os.listdir(source_folder) if file.endswith('.zip')]
+for archive in sorted(archives):
+    if archive.endswith('.zip'):
+        print(archive)
+        copy_unpack(archive, source_folder, work_folder)
+        
+# last archive in sorted list is the semester to be checked
+semester_to_check = archive.split('_')[0]
+
+
+
+#%% Building model
 
 def get_text(filename):
-    if filename.endswith('.pdf'):
-        reader = pypdf.PdfReader(filename)
-        text = '\n'.join([page.extract_text() for page in reader.pages])
-    elif filename.endswith('.csv'):
-        with open(filename, 'r') as f:
-            text = f.read()
-    else:
+    try:
+        if filename.endswith('.pdf'):
+            reader = pypdf.PdfReader(filename)
+            text = '\n'.join([page.extract_text() for page in reader.pages])
+        elif filename.endswith('.csv'):
+            with open(filename, 'r') as f:
+                text = f.read()
+        else:
+            text = ''
+    except Exception as error:
+        print(f'Exception {error} while reading {filename}.')
         text = ''
     return text
 
@@ -52,7 +109,7 @@ def preprocess(text):
     stop_words = set(stopwords.words('hebrew'))
 
     tokens = tokenize(text.lower())
-    tokens = [token[1] for token in tokens if  token[1] not in stop_words]
+    tokens = [token[1] for token in tokens if  token[1] not in stop_words and isalphatoken(token)]
     return ' '.join(tokens)
 
 
@@ -119,8 +176,6 @@ def build():
 attributes = build()        
 texts = [attributes[sid]["txt"] for sid in attributes.keys()]
 
-
-#%%
 vectorizer = TfidfVectorizer(ngram_range=(NGRAM_min,NGRAM_max))
 print('fitting..')
 tfidf = vectorizer.fit_transform(texts)
@@ -129,14 +184,15 @@ print('Done')
 N = similarity.shape[0]
 
 
-#%%
+#%% Reporting result
 
 def copy_to_report(attr, return_url_type='excel'):
     
     submission_id = attr['submission_id']
     student_name = attr['student_name']
     
-    relative_folder = f'{submission_id}_{student_name}'.replace(' ', '_')
+    #relative_folder = f'{submission_id}_{student_name}'.replace(' ', '_')
+    relative_folder = f'{submission_id}'
     destination_folder = f'{report_folder}/{relative_folder}'
     if not os.path.exists(destination_folder):
         os.makedirs(destination_folder)
@@ -172,7 +228,7 @@ for i, keyi in enumerate(attributes.keys()):
 
     attr_i = attributes[keyi]
     
-    if attr_i["semester_id"] not in semesters_checked:
+    if attr_i["semester_id"] != semester_to_check:
         continue
 
     for j, keyj in enumerate(attributes.keys()):
@@ -185,8 +241,8 @@ for i, keyi in enumerate(attributes.keys()):
             continue;
 
         attr_j = attributes[keyj]
-        if attr_j["semester_id"] not in semesters_referenced:
-            continue
+        #if attr_j["semester_id"] not in semesters_referenced:
+        #    continue
 
         ts1, ts2 = attr_i["timestamp"], attr_j["timestamp"]
         days_distance = (ts1 - ts2) / 60 /60 /24
@@ -213,6 +269,7 @@ for i, keyi in enumerate(attributes.keys()):
 
 
 with codecs.open(reportfilename, 'w', 'utf-8') as f:
-    f.write(report)                        
+    f.write(report)          
 
 print('Done: see report.txt')
+
