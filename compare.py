@@ -14,17 +14,24 @@ import pypdf, codecs
 import datetime
 import zipfile
 from time import mktime
+import configparser
 
 
-root_folder = 'C:/Users/Evgeny/Documents/similarity'
-source_folder = f'{root_folder}/submissions/pendulum'
-work_folder = f'{root_folder}/unpacked'
-report_folder = f'{root_folder}/report'
+config = configparser.ConfigParser()
+config.read('config.ini')
 
-NGRAM_min, NGRAM_max = 2, 5
+
+root_folder = os.getcwd().replace('\\', '/')  #'C:/Users/Evgeny/Documents/similarity'
+source_folder = f'{root_folder}/{config["FOLDERS"]["Submissions"]}'
+
+work_folder = f'{root_folder}/{config["FOLDERS"]["Unpack"]}'
+report_folder = f'{root_folder}/{config["FOLDERS"]["Report"]}'
+
+NGRAM_min = int(config["PARAMETERS"]["NGRAM_min"])
+NGRAM_max = int(config["PARAMETERS"]["NGRAM_max"])
  
-THRESHOLD = 0.50 # similarity treshold
-MIN_DAYS_DISTANCE = 1 # minumum time between submissions
+THRESHOLD = float(config["PARAMETERS"]["Threshold"]) # similarity treshold
+MIN_DAYS_DISTANCE = float(config["PARAMETERS"]["MIN_DAYS_DISTANCE"]) # minumum time between submissions
 
 #%% Unpacking
 
