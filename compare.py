@@ -109,7 +109,7 @@ def preprocess(text):
     stop_words = set(stopwords.words('hebrew'))
 
     tokens = tokenize(text.lower())
-    tokens = [token[1] for token in tokens if  token[1] not in stop_words and isalphatoken(token)]
+    tokens = [token[1] for token in tokens if  token[1] not in stop_words]
     return ' '.join(tokens)
 
 
