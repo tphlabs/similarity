@@ -2,8 +2,10 @@
 """
 Created on Mon Jul  1 09:04:19 2024
 
-@author: Evgeny
+@author: Evgeny Kolonsky
+v0.1
 """
+
 
 import os, shutil
 from nltk.corpus import stopwords
@@ -18,20 +20,35 @@ import configparser
 
 
 config = configparser.ConfigParser()
-config.read('config.ini')
 
+if  config.read('config.ini') == []:
+    print('config.ini not found, creating with default parameters.')
+    config['FOLDERS'] = {  'Submissions' : 'submissions',
+                           'Unpack' : 'unpack',
+                           'Report' : 'report'}
+    
+    config['PARAMETERS'] = { 'NGRAM_min': '2',
+                             'NGRAM_max': '5',
+                             'Threshold': '0.5',
+                             'MIN_DAYS_DISTANCE': '1'}
+    with open('config.ini', 'w') as configfile:
+      config.write(configfile)    
 
 root_folder = os.getcwd().replace('\\', '/')  #'C:/Users/Evgeny/Documents/similarity'
-source_folder = f'{root_folder}/{config["FOLDERS"]["Submissions"]}'
+source_folder = config.get('FOLDERS', 'Submissions', fallback = 'submissions')
+source_folder = f'{root_folder}/{source_folder}'
 
-work_folder = f'{root_folder}/{config["FOLDERS"]["Unpack"]}'
-report_folder = f'{root_folder}/{config["FOLDERS"]["Report"]}'
+work_folder = config.get('FOLDERS', 'Unpack', fallback = 'unpack')
+work_folder = f'{root_folder}/{work_folder}'
 
-NGRAM_min = int(config["PARAMETERS"]["NGRAM_min"])
-NGRAM_max = int(config["PARAMETERS"]["NGRAM_max"])
+report_folder = config.get('FOLDERS', 'Report', fallback = 'report')
+report_folder = f'{root_folder}/{report_folder}'
+
+NGRAM_min = config.getint('PARAMETERS', 'NGRAM_min', fallback = 2)
+NGRAM_max = config.getint('PARAMETERS', 'NGRAM_max', fallback = 5)
  
-THRESHOLD = float(config["PARAMETERS"]["Threshold"]) # similarity treshold
-MIN_DAYS_DISTANCE = float(config["PARAMETERS"]["MIN_DAYS_DISTANCE"]) # minumum time between submissions
+THRESHOLD = config.getfloat('PARAMETERS', 'Threshold', fallback = 0.5)  # similarity treshold
+MIN_DAYS_DISTANCE = config.getint('PARAMETERS', 'MIN_DAYS_DISTANCE', fallback = 1)  # minumum time between submissions
 
 #%% Unpacking
 
