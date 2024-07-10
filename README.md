@@ -13,7 +13,7 @@ Instructions:
 3. Rename zips to template YYYY.NN_xxx.zip and place to submissions folder.
 4. Set configurations parameteres in config.ini:
   - FOLDERS: `submissions folder` name, `work folder` for unpacked submissions, `report folder` for placing results
-  - Model parameters: `n-grams` interval (default `(2,5)`), threshold from 0 to 1 (default 0.5).
+  - Model PARAMETERS: `n-grams` interval (default `(2,5)`), threshold of cosine similarity from 0 (completely different) to 1 (identic texts). Default threshold `0.5`.
 5. Run `compare.py` or `compare.exe`
 6. See results in `report/report.txt`
 
