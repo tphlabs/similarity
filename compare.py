@@ -3,21 +3,23 @@
 Created on Mon Jul  1 09:04:19 2024
 
 @author: Evgeny Kolonsky
-v0.1
+v0.2
 """
 
 
 import os, shutil
-from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from hebrew_tokenizer.tokenizer import tokenizer
-import pypdf, codecs
+import pymupdf 
+import codecs
 import datetime
 import zipfile
 from time import mktime
 import configparser
 
+
+print('Sumbissions similarity check v0.2')
 
 config = configparser.ConfigParser()
 
@@ -34,6 +36,8 @@ if  config.read('config.ini') == []:
     with open('config.ini', 'w') as configfile:
       config.write(configfile)    
 
+print('Reading parameters from config.ini.')
+
 root_folder = os.getcwd().replace('\\', '/')  #'C:/Users/Evgeny/Documents/similarity'
 source_folder = config.get('FOLDERS', 'Submissions', fallback = 'submissions')
 source_folder = f'{root_folder}/{source_folder}'
@@ -49,6 +53,8 @@ NGRAM_max = config.getint('PARAMETERS', 'NGRAM_max', fallback = 5)
  
 THRESHOLD = config.getfloat('PARAMETERS', 'Threshold', fallback = 0.5)  # similarity treshold
 MIN_DAYS_DISTANCE = config.getint('PARAMETERS', 'MIN_DAYS_DISTANCE', fallback = 1)  # minumum time between submissions
+
+print('Parameters read.')
 
 #%% Unpacking
 
@@ -70,7 +76,6 @@ def unpack_inplace(zippedFile):
                 unpack_inplace(extractedfile)
 
     os.remove(zippedFile)
-    
     return
         
 
@@ -88,6 +93,7 @@ def copy_unpack(archive, source_folder, work_folder):
 
 
 # clean up work folder
+print('Cleaning work folder..')
 if os.path.exists(work_folder):
     shutil.rmtree(work_folder)
 os.makedirs(work_folder)
@@ -101,23 +107,26 @@ for archive in sorted(archives):
         
 # last archive in sorted list is the semester to be checked
 semester_to_check = archive.split('_')[0]
+print(f'Unpacking done. Semester to be checked: {semester_to_check}')
 
 
 
 #%% Building model
 
 def get_text(filename):
-    try:
-        if filename.endswith('.pdf'):
-            reader = pypdf.PdfReader(filename)
-            text = '\n'.join([page.extract_text() for page in reader.pages])
-        elif filename.endswith('.csv'):
+    extension = filename.split('.')[-1]
+    if extension == 'pdf':
+        doc = pymupdf.open(filename)
+        text = '\n'.join([page.get_text() for page in doc])
+        doc.close()
+    elif extension in ['csv', 'txt', 'tsv']:
+        try: 
             with open(filename, 'r') as f:
                 text = f.read()
-        else:
+        except Exception as err:
+            print(f'Exception {err} while reading file {filename}. Continued.')
             text = ''
-    except Exception as error:
-        print(f'Exception {error} while reading {filename}.')
+    else:
         text = ''
     return text
 
@@ -130,7 +139,7 @@ def tokenize(text, with_whitespaces=False):
 
 def preprocess(text):
     """Preprocesses the text by removing  stop words, and stemming the words."""
-    stop_words = set(stopwords.words('hebrew'))
+    stop_words = ['']
 
     tokens = tokenize(text.lower())
     tokens = [token[1] for token in tokens if  token[1] not in stop_words]
@@ -197,15 +206,21 @@ def build():
     print('Processed ', len(attributes))
     return attributes
 
-attributes = build()        
-texts = [attributes[sid]["txt"] for sid in attributes.keys()]
+print('Building text corpus ..')
+attributes = build()   
+print('Text corpus collection complete.')   
+
+print('Fitting model..')
 
 vectorizer = TfidfVectorizer(ngram_range=(NGRAM_min,NGRAM_max))
-print('fitting..')
+
+texts = [attributes[sid]["txt"] for sid in attributes.keys()]
+  
 tfidf = vectorizer.fit_transform(texts)
 similarity = cosine_similarity(tfidf)
-print('Done')
 N = similarity.shape[0]
+
+print('Fitting done.')
 
 
 #%% Reporting result
