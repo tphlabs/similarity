@@ -23,5 +23,6 @@ Report contains links to selected submissions, active if copy-paste text to Exce
 (under construction).
 `hihglight.py` is an utility to find and higlight parts of text which is copied without changes from one pdf document to other.
 
-   
+Source: [https://github.com/tphlabs/similarity](https://github.com/tphlabs/similarity/edit/main/README.md)   
+
 
