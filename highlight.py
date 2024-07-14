@@ -3,15 +3,6 @@ import difflib
 
 
 
-# open input PDF 
-pdf_path = 'C:/Users/Evgeny/Documents/similarity/report/485353/rmp_Julia_62_13.pdf'
-pdf_source = 'C:/Users/Evgeny/Documents/similarity/report/119330/rmp_mark_55_19.pdf'
-#file1 = 'C:/Users/Evgeny/Documents/similarity/report/248870\דוח קבל לוחות - אלון ותומר.pdf'
-#file2 = 'C:/Users/Evgeny/Documents/similarity/report/398691\דוח קבל לוחות.pdf'
-
-
-
-
 #%%
 
 
@@ -40,18 +31,26 @@ def highlight_text_in_pdf(pdf_path, pdf_source, output_pdf):
       for text in similar_texts:
           text_instances = page.search_for(text)
           for inst in text_instances:
-              highlight = page.add_highlight_annot(inst)
+              try: 
+                  highlight = page.add_highlight_annot(inst)
+              except Exception as err:
+                  print(f'Exception {err} while annotating {pdf_path}. Continued.')
+                  continue
     #highlight.update()
     doc1.save(output_pdf)
     doc1.close()
     doc2.close()
 
 
-
+#%%
+# open input PDF 
+#pdf_path = 'C:/Users/Evgeny/Documents/similarity/report/485353/rmp_Julia_62_13.pdf'
+#pdf_source = 'C:/Users/Evgeny/Documents/similarity/report/119330/rmp_mark_55_19.pdf'
+#file1 = 'C:/Users/Evgeny/Documents/similarity/report/248870\דוח קבל לוחות - אלון ותומר.pdf'
+#file2 = 'C:/Users/Evgeny/Documents/similarity/report/398691\דוח קבל לוחות.pdf'
         
 
 #highlight_text_in_pdf(pdf_path, pdf_source)
-#%%
 
         
             

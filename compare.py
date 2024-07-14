@@ -3,8 +3,11 @@
 Created on Mon Jul  1 09:04:19 2024
 
 @author: Evgeny Kolonsky
-v0.3
 """
+VERSION = 'v0.3.1' # 7z archives functionality aded
+
+import warnings
+warnings.filterwarnings('ignore', category=FutureWarning)
 
 
 import os, shutil
@@ -14,18 +17,16 @@ from hebrew_tokenizer.tokenizer import tokenizer
 import pymupdf 
 import codecs
 import datetime
-import zipfile
+import zipfile, py7zr
 from time import mktime
 import configparser
 import difflib
 from highlight import highlight_text_in_pdf
-import warnings
-
-warnings.filterwarnings('ignore', category=FutureWarning)
 
 
-print('Sumbissions similarity check v0.3')
-print('Evgeny Kolonsky, Technion Physics, 2024')
+print(f'Sumbissions similarity check {VERSION}')
+print('Evgeny Kolonsky, Technion Physics, 2024 \n')
+
 
 config = configparser.ConfigParser()
 
@@ -80,7 +81,10 @@ def unpack_inplace(zippedFile):
             
             if extractedfile.endswith('.zip'):
                 unpack_inplace(extractedfile)
-
+            elif extractedfile.endswith('.7z'):
+                with py7zr.SevenZipFile( extractedfile, "r") as archive:
+                    archive.extractall(os.path.dirname(extractedfile))    
+                
     os.remove(zippedFile)
     return
         

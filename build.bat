@@ -1,1 +1,1 @@
-python -m PyInstaller --onefile --hidden-import pymupdf compare.py
+python -m PyInstaller --onefile --hidden-import pymupdf --hidden-import py7zr compare.py
