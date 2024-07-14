@@ -3,7 +3,7 @@
 Created on Mon Jul  1 09:04:19 2024
 
 @author: Evgeny Kolonsky
-v0.2
+v0.3
 """
 
 
@@ -17,9 +17,15 @@ import datetime
 import zipfile
 from time import mktime
 import configparser
+import difflib
+from highlight import highlight_text_in_pdf
+import warnings
+
+warnings.filterwarnings('ignore', category=FutureWarning)
 
 
-print('Sumbissions similarity check v0.2')
+print('Sumbissions similarity check v0.3')
+print('Evgeny Kolonsky, Technion Physics, 2024')
 
 config = configparser.ConfigParser()
 
@@ -222,6 +228,7 @@ N = similarity.shape[0]
 
 print('Fitting done.')
 
+print('Building report...')
 
 #%% Reporting result
 
@@ -237,6 +244,8 @@ def copy_to_report(attr, return_url_type='excel'):
         os.makedirs(destination_folder)
     
     new_file_path = [shutil.copy(file_path, destination_folder) for file_path in attr['file_path'] ]
+    
+    #
 
     link = f'./{relative_folder}'
     shortname = submission_id
@@ -246,7 +255,7 @@ def copy_to_report(attr, return_url_type='excel'):
         url = f'"=HYPERLINK( ""{link}"", ""{shortname}"")"'
     else: # html type
         url = f'"file://{link}"'
-    return url
+    return url, new_file_path
 
 
 report = 'semester \t submission_id \t student_name \t when_submitted \t filename \t size_words \t\
@@ -297,10 +306,25 @@ for i, keyi in enumerate(attributes.keys()):
         stud1, stud2 = attr_i["student_name"],  attr_j["student_name"]
         file1, file2 = attr_i["filename"],      attr_j["filename"]
         size1, size2 = attr_i["size_words"],    attr_j["size_words"]
+        
 
         # copy to report folder
-        url1 = copy_to_report(attr_i)
-        url2 = copy_to_report(attr_j)
+        url1, submissionfiles1 = copy_to_report(attr_i)
+        url2, submissionfiles2 = copy_to_report(attr_j)
+        
+        # highlight differencies for pdf
+        pdfs1 = [file for file in submissionfiles1 if file.endswith('.pdf')]
+        pdfs2 = [file for file in submissionfiles2 if file.endswith('.pdf')]
+        if len(pdfs1) == 1 and len(pdfs2) == 1: # 1 to 1 compare available
+            pdf_similar = pdfs1[0]
+            pdf_source = pdfs2[0]
+            
+            destination_folder = f'{report_folder}/{id1}' 
+            output_pdf_name = f'{id1}_{id2}.pdf'
+            output_pdf_path = f'{destination_folder}/{output_pdf_name}'
+            print(output_pdf_path)
+            highlight_text_in_pdf(pdf_similar, pdf_source, output_pdf_path)
+        # ---
         
         report += f'{sem1}\t{url1}\t{stud1}\t{dt1}\t{file1}\t{size1}\t\
                     {sem2}\t{url2}\t{stud2}\t{dt2}\t{file2}\t{size2}\t\
