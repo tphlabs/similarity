@@ -8,7 +8,7 @@ Reports in format .pdf are highlighted to show copied fragments of text.
 
 Application runs in command line. All parameters are configured in config.ini file.
 
-Submission as .zip archive are read from  `/submissions/[course]` folder. 
+Submission as .zip archive are read from  `/submissions/[assignment]` folder. 
 Zip files should be renamed for better readability as `YYYY.NN_xxx.zip`, where `YYYY.NN` - year and semester of studies, `xxx` is assignment code.
 The submissions of last actual semester are checked against submissions in all previous semesters.
 Results are returned to `/report` folder.
