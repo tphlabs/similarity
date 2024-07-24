@@ -5,7 +5,7 @@ Created on Mon Jul  1 09:04:19 2024
 @author: Evgeny Kolonsky
 """
 #VERSION = 'v0.3.1' # 7z archives functionality added
-VERSION = 'v0.4.0' # report parameters and statistics
+VERSION = 'v0.4.1' # report parameters and statistics
 
 import warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -338,24 +338,26 @@ for i, keyi in enumerate(attributes.keys()):
 
 
 # statistics
-report += '\n'
+report += '\nGeneral:\n'
 report += f'Report produced: \t{datetime.datetime.now().strftime("%Y-%m-%d %H:%M")} \n'
-#report += f'Submission directory: \t{source_folder}\n'
-report += f'Parameters:\n'
-report += f'n-grams: \t {NGRAM_min} - {NGRAM_max}\n'
-report += f'Cosine distance threshold: \t {THRESHOLD}\n'
-report += f'Min days distance threshold: \t {MIN_DAYS_DISTANCE}\n'
-report += f'Submissions statistics:\n'
+report += f'Application version: \t{VERSION}\n'
+report += f'Source archives: \t{archives}\n\n'
+
 ts_total = [attributes[key]['timestamp'] for key in attributes.keys() ]
 ts_tocheck = [attributes[key]['timestamp'] for key in attributes.keys() 
               if attributes[key]['semester_id'] == semester_to_check]
 
-report += f'Checked submissions in this semester:\t {len(ts_tocheck)} \n'
-report += f'Last submission date:\t {datetime.datetime.fromtimestamp(max(ts_tocheck)).strftime("%Y-%m-%d %H:%M")}\n'
-report += f'Total submissions:\t {len(ts_total)}\n'
+report += f'Submissions statistics:\n'
 report += f'Earliest submission date:\t {datetime.datetime.fromtimestamp(min(ts_total)).strftime("%Y-%m-%d")}\n'
-report += f'Source archives: \t{archives}\n'
-report += f'Application version: \t{VERSION}\n'
+report += f'Last submission date:\t {datetime.datetime.fromtimestamp(max(ts_tocheck)).strftime("%Y-%m-%d")}\n'
+report += f'Total submissions:\t {len(ts_total)}\n'
+report += f'This semester submissions:\t {len(ts_tocheck)} \n\n'
+
+report += f'Parameters:\n'
+report += f'NGRAM_min = {NGRAM_min}\n'
+report += f'NGRAM_max = {NGRAM_max}\n'
+report += f'THRESHOLD = {THRESHOLD}\n'
+report += f'MIN_DAYS_DISTANCE = {MIN_DAYS_DISTANCE}\n\n'
 
 
 
