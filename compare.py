@@ -4,7 +4,8 @@ Created on Mon Jul  1 09:04:19 2024
 
 @author: Evgeny Kolonsky
 """
-VERSION = 'v0.3.1' # 7z archives functionality aded
+#VERSION = 'v0.3.1' # 7z archives functionality added
+VERSION = 'v0.4.0' # report parameters and statistics
 
 import warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -20,7 +21,6 @@ import datetime
 import zipfile, py7zr
 from time import mktime
 import configparser
-import difflib
 from highlight import highlight_text_in_pdf
 
 
@@ -276,13 +276,17 @@ os.makedirs(report_folder)
 reportfilename = f'{report_folder}/report.txt'
 
 
+
 for i, keyi in enumerate(attributes.keys()):
+    
 
     attr_i = attributes[keyi]
-    
+    # check only last semester
+    # comment to check all semesters
     if attr_i["semester_id"] != semester_to_check:
         continue
-
+    
+    
     for j, keyj in enumerate(attributes.keys()):
         
         if i == j:
@@ -293,8 +297,6 @@ for i, keyi in enumerate(attributes.keys()):
             continue;
 
         attr_j = attributes[keyj]
-        #if attr_j["semester_id"] not in semesters_referenced:
-        #    continue
 
         ts1, ts2 = attr_i["timestamp"], attr_j["timestamp"]
         days_distance = (ts1 - ts2) / 60 /60 /24
@@ -333,6 +335,28 @@ for i, keyi in enumerate(attributes.keys()):
         report += f'{sem1}\t{url1}\t{stud1}\t{dt1}\t{file1}\t{size1}\t\
                     {sem2}\t{url2}\t{stud2}\t{dt2}\t{file2}\t{size2}\t\
                     {cos_distance:.2f}\t{days_distance:.0f} \n'
+
+
+# statistics
+report += '\n'
+report += f'Report produced: \t{datetime.datetime.now().strftime("%Y-%m-%d %H:%M")} \n'
+#report += f'Submission directory: \t{source_folder}\n'
+report += f'Parameters:\n'
+report += f'n-grams: \t {NGRAM_min} - {NGRAM_max}\n'
+report += f'Cosine distance threshold: \t {THRESHOLD}\n'
+report += f'Min days distance threshold: \t {MIN_DAYS_DISTANCE}\n'
+report += f'Submissions statistics:\n'
+ts_total = [attributes[key]['timestamp'] for key in attributes.keys() ]
+ts_tocheck = [attributes[key]['timestamp'] for key in attributes.keys() 
+              if attributes[key]['semester_id'] == semester_to_check]
+
+report += f'Checked submissions in this semester:\t {len(ts_tocheck)} \n'
+report += f'Last submission date:\t {datetime.datetime.fromtimestamp(max(ts_tocheck)).strftime("%Y-%m-%d %H:%M")}\n'
+report += f'Total submissions:\t {len(ts_total)}\n'
+report += f'Earliest submission date:\t {datetime.datetime.fromtimestamp(min(ts_total)).strftime("%Y-%m-%d")}\n'
+report += f'Source archives: \t{archives}\n'
+report += f'Application version: \t{VERSION}\n'
+
 
 
 with codecs.open(reportfilename, 'w', 'utf-8') as f:
