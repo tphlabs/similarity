@@ -5,7 +5,7 @@ Created on Mon Jul  1 09:04:19 2024
 @author: Evgeny Kolonsky
 """
 #VERSION = 'v0.3.1' # 7z archives functionality added
-VERSION = 'v0.4.1' # report parameters and statistics
+VERSION = 'v0.5.0' # image comparison
 
 import warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -21,6 +21,12 @@ import datetime
 import zipfile, py7zr
 from time import mktime
 import configparser
+# image comparison modules
+from PIL import Image, ImageOps, ImageChops
+from io import BytesIO
+import  imagehash
+import numpy as np
+#
 from highlight import highlight_text_in_pdf
 
 
@@ -61,6 +67,9 @@ NGRAM_max = config.getint('PARAMETERS', 'NGRAM_max', fallback = 5)
 THRESHOLD = config.getfloat('PARAMETERS', 'Threshold', fallback = 0.5)  # similarity treshold
 MIN_DAYS_DISTANCE = config.getint('PARAMETERS', 'MIN_DAYS_DISTANCE', fallback = 1)  # minumum time between submissions
 
+HASH_DISTANCE_THRESHOLD = 32
+MIN_PIXEL_SIZE = 300 # minimal width or height of image to consider
+
 print('Parameters read.')
 
 #%% Unpacking
@@ -78,7 +87,7 @@ def unpack_inplace(zippedFile):
             # preserve creation time
             date_time = mktime(zi.date_time + (0, 0, -1))
             os.utime(extractedfile, (date_time, date_time))
-            
+            #print(extractedfile)
             if extractedfile.endswith('.zip'):
                 unpack_inplace(extractedfile)
             elif extractedfile.endswith('.7z'):
@@ -123,11 +132,49 @@ print(f'Unpacking done. Semester to be checked: {semester_to_check}')
 
 #%% Building model
 
+# returns list of image hash for all images in pdf document
+def get_hashes(doc):
+    # trims white spaces around image for the following reason:
+    # white space may slighltly vary when image is copy-pasted
+    # from original document to a copy document
+    def trim(im):
+        bg = Image.new(im.mode, im.size, im.getpixel((0,0)))
+        diff = ImageChops.difference(im, bg)
+        diff = ImageChops.add(diff, diff, 2.0, -100)
+        bbox = diff.getbbox()
+        if bbox:
+            return im.crop(bbox)
+        else:
+            return im
+    
+    hashes = []
+    for page in doc:
+        for block in page.get_text("dict")["blocks"]:
+            # skip if no image block
+            if block["type"] != 1:
+                continue
+            w = block['width']            
+            h = block['height']
+            if  w < MIN_PIXEL_SIZE or h < MIN_PIXEL_SIZE:
+                continue
+            #print(block.keys())
+            img_data = block['image']                    
+            img = Image.open(BytesIO(img_data))
+            img = trim(img)    
+            try:
+                hsh = imagehash.average_hash(img, hash_size=16)
+                hashes.append(hsh)
+            except:
+                pass
+    return hashes
+    
 def get_text(filename):
     extension = filename.split('.')[-1]
+    hashes = []
     if extension == 'pdf':
         doc = pymupdf.open(filename)
         text = '\n'.join([page.get_text() for page in doc])
+        hashes = get_hashes(doc)
         doc.close()
     elif extension in ['csv', 'txt', 'tsv']:
         try: 
@@ -138,7 +185,8 @@ def get_text(filename):
             text = ''
     else:
         text = ''
-    return text
+        
+    return text, hashes
 
    
 
@@ -163,7 +211,14 @@ def get_attributes(file_path):
     
     dirlevels = file_path.replace(work_folder,'').replace('\\', '/').split('/')
     
-    moodle_name = [d for d in dirlevels if 'assignsubmission_file' in d][0].split('_')
+    # debug
+    x = [d for d in dirlevels if 'assignsubmission_file' in d]
+    if len(x) == 0:
+        #print(file_path)
+        moodle_name = ['student_undefined', 'id_undefined']
+    # end debug
+    else:
+        moodle_name = [d for d in dirlevels if 'assignsubmission_file' in d][0].split('_')
         
     semester_id = dirlevels[1] # YYYY.NN
     filename = dirlevels[-1]
@@ -171,8 +226,8 @@ def get_attributes(file_path):
     submission_id = moodle_name[1]
     submission_time = os.path.getmtime(file_path)
     
-    txt = get_text(file_path)
-    txt = preprocess(txt)
+    txt, hashes = get_text(file_path)
+    #txt = preprocess(txt) # kes 
     txt_size = len(txt.split())
     
     result = {}
@@ -184,6 +239,7 @@ def get_attributes(file_path):
     result['filename'] = [filename]
     result['txt'] = txt
     result['size_words'] = txt_size
+    result['hashes'] = hashes
     return result
 
 def build():
@@ -210,11 +266,14 @@ def build():
                 attributes[submission_id]['file_path'] += attr['file_path'] 
                 # add text and size
                 attributes[submission_id]['txt'] += '\n' +attr['txt']
+                attributes[submission_id]['hashes'] += attr['hashes']
                 attributes[submission_id]['size_words'] += attr['size_words']
             
             print('.', end='')
     print('Processed ', len(attributes))
     return attributes
+
+
 
 print('Building text corpus ..')
 attributes = build()   
@@ -235,6 +294,49 @@ print('Fitting done.')
 print('Building report...')
 
 #%% Reporting result
+
+def hashes_compare(h1, h2):
+# gets pair of hashes vector h1, h2
+# for each element in h1 searches similar image hash in h2
+# when found excludes the pair found and continues to search
+# returns tuple (count, N)
+# where count - number of elements in h1 having similar elements in h2
+# and N - total number of elements in h1
+    
+    def nearest_hash(hsh, v):
+    # gets hash hsh and vector of hashes v
+    # returns index of element in v
+    # having hash nearest to hsh
+    # if distance between them is small enough
+        Nv = len(v)
+        ind = -1 # default
+        if Nv > 0:
+            distance = np.zeros(Nv) - 1
+            for i in range(Nv):
+                distance[i] = hsh - v[i]
+            if np.min(distance) <= HASH_DISTANCE_THRESHOLD:
+                ind = np.argmin(distance)
+        return ind
+    
+    Nh = len(h1)
+    count = 0
+    h2copy = h2.copy()
+    for hsh in h1:
+        ind = nearest_hash(hsh, h2copy)
+        if ind >= 0: # found similar image in v2
+            count += 1
+            # remove image that was found similiar from further comparison
+            h2copy = [x for i,x in enumerate(h2copy) if i!=ind]
+            if len(h2copy) > 0: 
+                continue
+            else:
+                break
+    if Nh > 1: 
+        result = count / Nh
+    else:
+        result = 0
+    return result
+
 
 def copy_to_report(attr, return_url_type='excel'):
     
@@ -262,9 +364,9 @@ def copy_to_report(attr, return_url_type='excel'):
     return url, new_file_path
 
 
-report = 'semester \t submission_id \t student_name \t when_submitted \t filename \t size_words \t\
-          semester \t submission_id \t student_name \t when_submitted \t filename \t size_words \t\
-          cos_distance \t days_between \n'
+report = 'semester \t submission_id \t student_name \t when_submitted \t filename \t size_words \t num_figures\t\
+          semester \t submission_id \t student_name \t when_submitted \t filename \t size_words \t num_figures \t\
+          cos_distance \t hash_distance \t days_between \n'
 
 
 
@@ -291,12 +393,20 @@ for i, keyi in enumerate(attributes.keys()):
         
         if i == j:
             continue
-        
-        cos_distance = similarity[i,j]
-        if cos_distance < THRESHOLD:
-            continue;
 
         attr_j = attributes[keyj]
+
+        cos_distance = similarity[i,j]
+        
+        hash_distance = hashes_compare(attr_i['hashes'], attr_j['hashes'])
+        #if hash_distance > 0:
+        #    print(i, j, len(attr_i['hashes']), hash_distance)
+        
+        total_distance = cos_distance + hash_distance / 2
+        
+        if total_distance < THRESHOLD:
+            continue;
+
 
         ts1, ts2 = attr_i["timestamp"], attr_j["timestamp"]
         days_distance = (ts1 - ts2) / 60 /60 /24
@@ -331,10 +441,13 @@ for i, keyi in enumerate(attributes.keys()):
             print(output_pdf_path)
             highlight_text_in_pdf(pdf_similar, pdf_source, output_pdf_path)
         # ---
-        
-        report += f'{sem1}\t{url1}\t{stud1}\t{dt1}\t{file1}\t{size1}\t\
-                    {sem2}\t{url2}\t{stud2}\t{dt2}\t{file2}\t{size2}\t\
-                    {cos_distance:.2f}\t{days_distance:.0f} \n'
+        figures1 = len(attr_i['hashes'])
+        figures2 = len(attr_j['hashes'])
+        report += f'{sem1}\t{url1}\t{stud1}\t{dt1}\t{file1}\t{size1}\t{figures1}\t\
+                    {sem2}\t{url2}\t{stud2}\t{dt2}\t{file2}\t{size2}\t{figures2}\t\
+                    {cos_distance:.2f}\t\
+                    {hash_distance:.2f}\t\
+                    \t{days_distance:.0f} \n'
 
 
 # statistics
