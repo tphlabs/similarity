@@ -5,7 +5,7 @@ Created on Mon Jul  1 09:04:19 2024
 @author: Evgeny Kolonsky
 """
 #VERSION = 'v0.3.1' # 7z archives functionality added
-VERSION = 'v0.5.1' # image comparison
+VERSION = 'v0.5.2' # image comparison
 
 import warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -270,8 +270,6 @@ print('Building report...')
 
 #%% Reporting result
 
-THRESHOLD = 0.1
-
 def copy_to_report(attr, return_url_type='excel'):
     
     submission_id = attr['submission_id']
@@ -332,8 +330,8 @@ for i, keyi in enumerate(attributes.keys()):
 
         cos_distance = similarity[i,j]
         
-        images_copied_ids = hashes_compare(attr_i['images'], attr_j['images']) 
-        images_copied = len(images_copied_ids)
+        similar_pairs, images_copied_ids1, images_copied_ids2 = hashes_compare(attr_i['images'], attr_j['images']) 
+        images_copied = np.min( len(images_copied_ids1), len(images_copied_ids2))
         #if hash_distance > 0:
         #    print(i, j, len(attr_i['hashes']), hash_distance)
         
@@ -380,7 +378,7 @@ for i, keyi in enumerate(attributes.keys()):
                     {sem2}\t{url2}\t{stud2}\t{dt2}\t{file2}\t{size2}\t{figures2}\t\
                     {cos_distance:.2f}\t\
                     {images_copied:.0f}\t\
-                    \t{days_distance:.0f} \n'
+                    {days_distance:.0f} \n'
 
 
 # statistics

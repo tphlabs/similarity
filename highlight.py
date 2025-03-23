@@ -84,11 +84,15 @@ def hashes_compare(images1, images2):
 # gets images dict
 # returns keys of images1 having similar image in images2
 
-    similars = set([ id1
+    similar_pairs = set([ (id1, id2)
                   for id1 in images1 
                   for id2 in images2 
                   if images1[id1]['hash'] - images2[id2]['hash'] <= HASH_DISTANCE_THRESHOLD])
-    return similars
+    # set of pic ids found be copied in image 1
+    ids0 = set([pair[0] for pair in similar_pairs]) 
+    # and the same for image 2
+    ids1 = set([pair[1] for pair in similar_pairs])
+    return similar_pairs, ids0, ids1
 
 
 
@@ -125,11 +129,11 @@ def highlight_text_in_pdf(pdf_path, pdf_source, output_pdf):
     images1 = extract_images_from_pdf(doc1)
     images2 = extract_images_from_pdf(doc2)
     
-    similar_pairs = hashes_compare(images1, images2)
+    similar_pairs, ids1, ids2 = hashes_compare(images1, images2)
     for page in doc1:
         for pic in page.get_image_info():
             # skip if no image block
-            if pic['number'] in similar_pairs:
+            if pic['number'] in ids1:
                 bbox = pic['bbox']
                 page.draw_rect(bbox, color=getColor("yellow"))
     doc1.save(output_pdf)
@@ -141,8 +145,8 @@ def highlight_text_in_pdf(pdf_path, pdf_source, output_pdf):
 
 if __name__ == "__main__":
     # open input PDF 
-    pdf_path = 'c:/Users/Evgeny/Downloads/copy.pdf'
-    pdf_source = 'c:/Users/Evgeny/Downloads/source.pdf'
+    pdf_path = 'c:/Users/Evgeny/Downloads/r1.pdf'
+    pdf_source = 'c:/Users/Evgeny/Downloads/r2.pdf'
     output = 'c:/Users/Evgeny/Downloads/3.pdf'        
 
     print('Highliting..')
