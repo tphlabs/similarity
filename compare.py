@@ -331,7 +331,7 @@ for i, keyi in enumerate(attributes.keys()):
         cos_distance = similarity[i,j]
         
         similar_pairs, images_copied_ids1, images_copied_ids2 = hashes_compare(attr_i['images'], attr_j['images']) 
-        images_copied = np.min( len(images_copied_ids1), len(images_copied_ids2))
+        images_copied = min( len(images_copied_ids1), len(images_copied_ids2))
         #if hash_distance > 0:
         #    print(i, j, len(attr_i['hashes']), hash_distance)
         
