@@ -5,7 +5,9 @@ Created on Mon Jul  1 09:04:19 2024
 @author: Evgeny Kolonsky
 """
 #VERSION = 'v0.3.1' # 7z archives functionality added
-VERSION = 'v0.5.2' # image comparison
+#VERSION = 'v0.5.2' # image comparison
+VERSION = 'v0.5.3' # cos_distance replaced by similarity_ratio
+VERSION = 'v0.6.0' # image compared by perceptual hash + icon of similar image
 
 import warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -26,9 +28,13 @@ from PIL import Image,  ImageChops
 from io import BytesIO
 import  imagehash
 import numpy as np
+import difflib
+#import pyexcel_xls
 #
-from highlight import highlight_text_in_pdf, extract_text_from_pdf, \
-                extract_images_from_pdf, hashes_compare
+from highlight import highlight_pdf, extract_text_from_pdf, \
+                extract_images_from_pdf, hashes_compare, MIN_PIXEL_SIZE
+                
+global HASH_DISTANCE_THRESHOLD                
 
 
 print(f'Sumbissions similarity check {VERSION}')
@@ -47,7 +53,8 @@ if  config.read('config.ini') == []:
                              'NGRAM_max': '5',
                              'Threshold': '0.5',
                              'MIN_DAYS_DISTANCE': '1',
-                             'ALLOWED_IMAGES_COPIED': 2}
+                             'ALLOWED_IMAGES_COPIED': 2,
+                             'HASH_DISTANCE_THRESHOLD': 24}
     with open('config.ini', 'w') as configfile:
       config.write(configfile)    
 
@@ -66,13 +73,15 @@ report_folder = f'{root_folder}/{report_folder}'
 NGRAM_min = config.getint('PARAMETERS', 'NGRAM_min', fallback = 2)
 NGRAM_max = config.getint('PARAMETERS', 'NGRAM_max', fallback = 5)
  
-THRESHOLD = config.getfloat('PARAMETERS', 'Threshold', fallback = 0.5)  # similarity treshold
+THRESHOLD = config.getfloat('PARAMETERS', 'Threshold', fallback = 0.2)  # similarity treshold
+TOP_SUSPECTED = config.getfloat('PARAMETERS', 'TOP_SUSPECTED', fallback = 100)  # similarity treshold
 MIN_DAYS_DISTANCE = config.getint('PARAMETERS', 'MIN_DAYS_DISTANCE', fallback = 1)  # minumum time between submissions
 ALLOWED_IMAGES_COPIED = config.getint('PARAMETERS', 'ALLOWED_IMAGES_COPIED', fallback=2) # similar images  treshold
+HASH_DISTANCE_THRESHOLD = config.getint('PARAMETERS', 'HASH_DISTANCE_THRESHOLD', fallback=16) # similar images  treshold
 
 # defined in module highlight.py
-HASH_DISTANCE_THRESHOLD = 4
-MIN_PIXEL_SIZE = 300 # minimal width or height of image to consider
+#HASH_DISTANCE_THRESHOLD = 4
+#MIN_PIXEL_SIZE = 300 # minimal width or height of image to consider
 
 print('Parameters read.')
 
@@ -213,6 +222,7 @@ def get_attributes(file_path):
     result['file_path'] = [file_path]
     result['filename'] = [filename]
     result['txt'] = txt
+    result['chain'] = txt.split()
     result['size_words'] = txt_size
     result['images'] = images
     return result
@@ -241,6 +251,7 @@ def build():
                 attributes[submission_id]['file_path'] += attr['file_path'] 
                 # add text and size
                 attributes[submission_id]['txt'] += '\n' +attr['txt']
+                attributes[submission_id]['chain'] += attr['chain']
                 attributes[submission_id]['images'] = attr['images'] # suggested here that submission has only one file
                 attributes[submission_id]['size_words'] += attr['size_words']
             
@@ -261,8 +272,12 @@ vectorizer = TfidfVectorizer(ngram_range=(NGRAM_min,NGRAM_max))
 texts = [attributes[sid]["txt"] for sid in attributes.keys()]
   
 tfidf = vectorizer.fit_transform(texts)
-similarity = cosine_similarity(tfidf)
-N = similarity.shape[0]
+print('Caluclating cos distance')
+similarity_cos = cosine_similarity(tfidf)
+N = similarity_cos.shape[0]
+
+
+            
 
 print('Fitting done.')
 
@@ -298,7 +313,7 @@ def copy_to_report(attr, return_url_type='excel'):
 
 report = 'semester \t submission_id \t student_name \t when_submitted \t filename \t size_words \t num_figures\t\
           semester \t submission_id \t student_name \t when_submitted \t filename \t size_words \t num_figures \t\
-          cos_distance \t same_images \t days_between \n'
+          similarity_ratio \t  same_images \t days_between \n'
 
 
 
@@ -311,9 +326,9 @@ reportfilename = f'{report_folder}/report.txt'
 
 
 
+
 for i, keyi in enumerate(attributes.keys()):
     
-
     attr_i = attributes[keyi]
     # check only last semester
     # comment to check all semesters
@@ -323,25 +338,30 @@ for i, keyi in enumerate(attributes.keys()):
     
     for j, keyj in enumerate(attributes.keys()):
         
-        if i == j:
+        # suggestion that cos distance usually 2.5-3 times lower that similarity ratio distanc
+        # it will be used to accelerate report generation
+        # ratio is calculated far more slowly than cos distance
+        # and ration is calulated for all pairs (i,j), i.e it takes N^2 time
+        # so we will compare cos_distance with threshold/5
+        # if it is small enough the ratio calculation will be skipped
+        
+        if similarity_cos[i, j] < THRESHOLD / 5:
             continue
-
+        
         attr_j = attributes[keyj]
-
-        cos_distance = similarity[i,j]
         
-        similar_pairs, images_copied_ids1, images_copied_ids2 = hashes_compare(attr_i['images'], attr_j['images']) 
-        images_copied = min( len(images_copied_ids1), len(images_copied_ids2))
-        #if hash_distance > 0:
-        #    print(i, j, len(attr_i['hashes']), hash_distance)
+        similarity_ratio = difflib.SequenceMatcher(None, attr_i['chain'], attr_j['chain']).ratio()
+        similar_images = hashes_compare(attr_i['images'], attr_j['images'], hash_distance_treshold=HASH_DISTANCE_THRESHOLD) 
+        images_copied = len(similar_images)
         
-        if (cos_distance < THRESHOLD) and (images_copied <= ALLOWED_IMAGES_COPIED):
+        #if (cos_distance < THRESHOLD) and (images_copied <= ALLOWED_IMAGES_COPIED):
+        if (similarity_ratio < THRESHOLD) and (images_copied <= ALLOWED_IMAGES_COPIED):
             continue;
-
+    
 
         ts1, ts2 = attr_i["timestamp"], attr_j["timestamp"]
         days_distance = (ts1 - ts2) / 60 /60 /24
-        if days_distance < MIN_DAYS_DISTANCE:
+        if days_distance <= MIN_DAYS_DISTANCE:
             continue
             
         dt1, dt2 = str(datetime.datetime.fromtimestamp(ts1)), \
@@ -370,18 +390,18 @@ for i, keyi in enumerate(attributes.keys()):
             output_pdf_name = f'{id1}_{id2}.pdf'
             output_pdf_path = f'{destination_folder}/{output_pdf_name}'
             print(output_pdf_path)
-            highlight_text_in_pdf(pdf_similar, pdf_source, output_pdf_path)
+            # debug
+            highlight_pdf(pdf_similar, pdf_source, output_pdf_path, hdt=HASH_DISTANCE_THRESHOLD)
         # ---
         figures1 = len(attr_i['images'])
         figures2 = len(attr_j['images'])
         report += f'{sem1}\t{url1}\t{stud1}\t{dt1}\t{file1}\t{size1}\t{figures1}\t\
                     {sem2}\t{url2}\t{stud2}\t{dt2}\t{file2}\t{size2}\t{figures2}\t\
-                    {cos_distance:.2f}\t\
+                    {similarity_ratio:.2f}\t\
                     {images_copied:.0f}\t\
                     {days_distance:.0f} \n'
 
-
-# statistics
+    
 report += '\nGeneral:\n'
 report += f'Report produced: \t{datetime.datetime.now().strftime("%Y-%m-%d %H:%M")} \n'
 report += f'Application version: \t{VERSION}\n'
@@ -401,7 +421,10 @@ report += f'Parameters:\n'
 report += f'NGRAM_min = {NGRAM_min}\n'
 report += f'NGRAM_max = {NGRAM_max}\n'
 report += f'THRESHOLD = {THRESHOLD}\n'
-report += f'ALLOWED_IMAGES_COPIED = {ALLOWED_IMAGES_COPIED}\n\n'
+report += f'MIN_DAYS_DISTANCE = {MIN_DAYS_DISTANCE}\n'
+report += f'ALLOWED_IMAGES_COPIED = {ALLOWED_IMAGES_COPIED}\n'
+report += f'MIN_PIXEL_SIZE = {MIN_PIXEL_SIZE}\n'
+report += f'HASH_DISTANCE_THRESHOLD = {HASH_DISTANCE_THRESHOLD}\n\n'
 
 
 with codecs.open(reportfilename, 'w', 'utf-8') as f:
