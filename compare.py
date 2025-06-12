@@ -8,6 +8,7 @@ Created on Mon Jul  1 09:04:19 2024
 #VERSION = 'v0.5.2' # image comparison
 VERSION = 'v0.5.3' # cos_distance replaced by similarity_ratio
 VERSION = 'v0.6.0' # image compared by perceptual hash + icon of similar image
+VERSION = 'v0.6.1' # automatic threshold + shared config
 
 import warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -16,74 +17,32 @@ warnings.filterwarnings('ignore', category=FutureWarning)
 import os, shutil
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from hebrew_tokenizer.tokenizer import tokenizer
+#from hebrew_tokenizer.tokenizer import tokenizer
 import pymupdf 
 import codecs
 import datetime
 import zipfile, py7zr
 from time import mktime
-import configparser
-# image comparison modules
-from PIL import Image,  ImageChops
-from io import BytesIO
-import  imagehash
-import numpy as np
 import difflib
+import numpy as np
 #import pyexcel_xls
 #
 from highlight import highlight_pdf, extract_text_from_pdf, \
-                extract_images_from_pdf, hashes_compare, MIN_PIXEL_SIZE
+                extract_images_from_pdf, hashes_compare
                 
-global HASH_DISTANCE_THRESHOLD                
 
 
 print(f'Sumbissions similarity check {VERSION}')
 print('Evgeny Kolonsky, Technion Physics, 2024 - 2025 \n')
 
 
-config = configparser.ConfigParser()
+from config import source_folder, work_folder, report_folder
+from config import THRESHOLD_PERCENTILE, MIN_DAYS_DISTANCE, ALLOWED_IMAGES_COPIED
+from config import HASH_DISTANCE_THRESHOLD, MIN_PIXEL_SIZE, NGRAM_MIN, NGRAM_MAX
 
-if  config.read('config.ini') == []:
-    print('config.ini not found, creating with default parameters.')
-    config['FOLDERS'] = {  'Submissions' : 'submissions',
-                           'Unpack' : 'unpack',
-                           'Report' : 'report'}
-    
-    config['PARAMETERS'] = { 'NGRAM_min': '2',
-                             'NGRAM_max': '5',
-                             'Threshold': '0.5',
-                             'MIN_DAYS_DISTANCE': '1',
-                             'ALLOWED_IMAGES_COPIED': 2,
-                             'HASH_DISTANCE_THRESHOLD': 24}
-    with open('config.ini', 'w') as configfile:
-      config.write(configfile)    
-
-print('Reading parameters from config.ini.')
-
-root_folder = os.getcwd().replace('\\', '/')  #'C:/Users/Evgeny/Documents/similarity'
-source_folder = config.get('FOLDERS', 'Submissions', fallback = 'submissions')
-source_folder = f'{root_folder}/{source_folder}'
-
-work_folder = config.get('FOLDERS', 'Unpack', fallback = 'unpack')
-work_folder = f'{root_folder}/{work_folder}'
-
-report_folder = config.get('FOLDERS', 'Report', fallback = 'report')
-report_folder = f'{root_folder}/{report_folder}'
-
-NGRAM_min = config.getint('PARAMETERS', 'NGRAM_min', fallback = 2)
-NGRAM_max = config.getint('PARAMETERS', 'NGRAM_max', fallback = 5)
- 
-THRESHOLD = config.getfloat('PARAMETERS', 'Threshold', fallback = 0.2)  # similarity treshold
-TOP_SUSPECTED = config.getfloat('PARAMETERS', 'TOP_SUSPECTED', fallback = 100)  # similarity treshold
-MIN_DAYS_DISTANCE = config.getint('PARAMETERS', 'MIN_DAYS_DISTANCE', fallback = 1)  # minumum time between submissions
-ALLOWED_IMAGES_COPIED = config.getint('PARAMETERS', 'ALLOWED_IMAGES_COPIED', fallback=2) # similar images  treshold
-HASH_DISTANCE_THRESHOLD = config.getint('PARAMETERS', 'HASH_DISTANCE_THRESHOLD', fallback=16) # similar images  treshold
-
-# defined in module highlight.py
-#HASH_DISTANCE_THRESHOLD = 4
-#MIN_PIXEL_SIZE = 300 # minimal width or height of image to consider
-
+            
 print('Parameters read.')
+
 
 #%% Unpacking
 
@@ -152,7 +111,6 @@ def get_content(filename):
     if extension == 'pdf':
         doc = pymupdf.open(filename)
         text = extract_text_from_pdf(doc)
-        #text = preprocess('text')
         images = extract_images_from_pdf(doc)
         doc.close()
     elif extension in ['csv', 'txt', 'tsv']:
@@ -166,30 +124,6 @@ def get_content(filename):
         text = ''
         
     return text, images
-
-   
-
-def tokenize(text, with_whitespaces=False):
-    tokenizer.with_whitespaces = with_whitespaces
-    return tokenizer.tokenize(text)
-
-
-def preprocess(text):
-    """Preprocesses the text by removing  stop words, and stemming the words."""
-    punctiation = ['.', ',', ':', '!', '?', '\n']
-    for p in punctiation:
-        text = text.replace(p, '')
-        
-    #stop_words = ['']
-
-    #tokens = tokenize(text.lower())
-    #tokens = [token[1] for token in tokens if  token[1] not in stop_words]
-    #text = ' '.join(tokens)
-    return  text
-
-
-#nltk.download('stopwords')
-#nltk.download('punkt')
     
 def get_attributes(file_path):
     
@@ -267,7 +201,7 @@ print('Text corpus collection complete.')
 
 print('Fitting model..')
 
-vectorizer = TfidfVectorizer(ngram_range=(NGRAM_min,NGRAM_max))
+vectorizer = TfidfVectorizer(ngram_range=(NGRAM_MIN,NGRAM_MAX))
 
 texts = [attributes[sid]["txt"] for sid in attributes.keys()]
   
@@ -281,9 +215,43 @@ N = similarity_cos.shape[0]
 
 print('Fitting done.')
 
-print('Building report...')
+#%%
+print('Evaluating data..')
+
+distances = []
+
+for i, keyi in enumerate(attributes.keys()):
+
+    attr_i = attributes[keyi]
+    # check only last semester
+    # comment to check all semesters
+    if attr_i["semester_id"] != semester_to_check:
+        continue
+    
+    dist_i = 0
+    for j, keyj in enumerate(attributes.keys()):
+        attr_j = attributes[keyj]
+        ts1, ts2 = attr_i["timestamp"], attr_j["timestamp"]
+        days_distance = (ts1 - ts2) / 60 /60 /24
+        if days_distance <= MIN_DAYS_DISTANCE:
+            continue
+        
+        if similarity_cos[i,j] > dist_i:
+            dist_i = similarity_cos[i,j]
+    distances.append(dist_i)
+    
+THRESHOLD = np.percentile(distances, THRESHOLD_PERCENTILE)
+print(f'THRESHOLD set automatically {THRESHOLD:0.2f}')
+        
+
+
+
+
+
+
 
 #%% Reporting result
+print('Building report...')
 
 def copy_to_report(attr, return_url_type='excel'):
     
@@ -338,10 +306,10 @@ for i, keyi in enumerate(attributes.keys()):
     
     for j, keyj in enumerate(attributes.keys()):
         
-        # suggestion that cos distance usually 2.5-3 times lower that similarity ratio distanc
+        # suggestion that cos distance usually 2.5-3 times lower that similarity ratio distance
         # it will be used to accelerate report generation
         # ratio is calculated far more slowly than cos distance
-        # and ration is calulated for all pairs (i,j), i.e it takes N^2 time
+        # and ratio is calulated for all pairs (i,j), i.e it takes ~N^2 time
         # so we will compare cos_distance with threshold/5
         # if it is small enough the ratio calculation will be skipped
         
@@ -351,7 +319,7 @@ for i, keyi in enumerate(attributes.keys()):
         attr_j = attributes[keyj]
         
         similarity_ratio = difflib.SequenceMatcher(None, attr_i['chain'], attr_j['chain']).ratio()
-        similar_images = hashes_compare(attr_i['images'], attr_j['images'], hash_distance_treshold=HASH_DISTANCE_THRESHOLD) 
+        similar_images = hashes_compare(attr_i['images'], attr_j['images']) 
         images_copied = len(similar_images)
         
         #if (cos_distance < THRESHOLD) and (images_copied <= ALLOWED_IMAGES_COPIED):
@@ -390,8 +358,10 @@ for i, keyi in enumerate(attributes.keys()):
             output_pdf_name = f'{id1}_{id2}.pdf'
             output_pdf_path = f'{destination_folder}/{output_pdf_name}'
             print(output_pdf_path)
+            
             # debug
-            highlight_pdf(pdf_similar, pdf_source, output_pdf_path, hdt=HASH_DISTANCE_THRESHOLD)
+            highlight_pdf(pdf_similar, pdf_source, output_pdf_path)
+            
         # ---
         figures1 = len(attr_i['images'])
         figures2 = len(attr_j['images'])
@@ -418,9 +388,9 @@ report += f'Total submissions:\t {len(ts_total)}\n'
 report += f'This semester submissions:\t {len(ts_tocheck)} \n\n'
 
 report += f'Parameters:\n'
-report += f'NGRAM_min = {NGRAM_min}\n'
-report += f'NGRAM_max = {NGRAM_max}\n'
-report += f'THRESHOLD = {THRESHOLD}\n'
+report += f'NGRAM_MIN = {NGRAM_MIN}\n'
+report += f'NGRAM_MAX = {NGRAM_MAX}\n'
+report += f'THRESHOLD = {THRESHOLD:.2f}\n'
 report += f'MIN_DAYS_DISTANCE = {MIN_DAYS_DISTANCE}\n'
 report += f'ALLOWED_IMAGES_COPIED = {ALLOWED_IMAGES_COPIED}\n'
 report += f'MIN_PIXEL_SIZE = {MIN_PIXEL_SIZE}\n'

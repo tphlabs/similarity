@@ -7,13 +7,12 @@ from io import BytesIO
 import  imagehash
 import numpy as np
 
+from config import HASH_DISTANCE_THRESHOLD, MIN_PIXEL_SIZE, HASH_SIZE
 
 # version 0.2.1 refactored hash comparison
 # version 0.2.2 with matches > 0
 
 
-MIN_PIXEL_SIZE = 200
-HASH_SIZE = 16
 #%%
 # version 0.2 with graphics
 
@@ -90,7 +89,9 @@ def extract_images_from_pdf(doc):
             
             try:
                 images[id] =  {'hash' :imagehash.phash(img, hash_size=HASH_SIZE),
-                               'image': img }
+                               'image': img,
+                               'bbox': bbox,
+                               'size': (w, h)}
             except:
                 print(f'Failed to get hash image {doc.name}_{id}')
                 pass
@@ -98,7 +99,7 @@ def extract_images_from_pdf(doc):
     return images
 
 
-def hashes_compare(images1, images2, hash_distance_treshold=24):
+def hashes_compare(images1, images2):
 # gets images dict
 # returns keys of images1 having similar image in images2
     if len(images1) * len(images2) ==0:
@@ -122,14 +123,14 @@ def hashes_compare(images1, images2, hash_distance_treshold=24):
     
     # remap index to image id for min distances below treshold
     similar_images = [(ix1[i], ix2[nearest_ix[i]]) for i in range(len(nearest_ix))
-             if nearest_dist[i] < hash_distance_treshold]
+             if nearest_dist[i] < HASH_DISTANCE_THRESHOLD]
     
     return similar_images
 
 
 
 
-def highlight_pdf(pdf_path, pdf_source, output_pdf, hdt=24):
+def highlight_pdf(pdf_path, pdf_source, output_pdf):
     
     doc1 = pymupdf.open(pdf_path)
     doc2 = pymupdf.open(pdf_source)
@@ -161,7 +162,7 @@ def highlight_pdf(pdf_path, pdf_source, output_pdf, hdt=24):
     images1 = extract_images_from_pdf(doc1)
     images2 = extract_images_from_pdf(doc2)
     
-    similar_images = hashes_compare(images1, images2, hash_distance_treshold=hdt)
+    similar_images = hashes_compare(images1, images2)
     
     
     for pagenum, page in enumerate(doc1):
@@ -191,7 +192,7 @@ def highlight_pdf(pdf_path, pdf_source, output_pdf, hdt=24):
                 w = x1 - x0
                 h = y1 - y0
                 # calculate thumbnail coordinates - left side of the page and twice small
-                x0_, y0_ = 1, y0
+                x0_, y0_ = 1, y0 - 10
                 x1_, y1_ = x0_ + w/2, y0_ + h/2
                 # top 
                 topleft = (x0_, y0_)  
@@ -229,7 +230,7 @@ if __name__ == "__main__":
 
     print('Highliting..')
 
-    similar_texts, similar_images, images1, images2 = highlight_pdf(pdf_path, pdf_source, output, hdt=24)
+    similar_texts, similar_images, images1, images2 = highlight_pdf(pdf_path, pdf_source, output)
 
     print('done')        
             
