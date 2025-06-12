@@ -388,9 +388,10 @@ report += f'Total submissions:\t {len(ts_total)}\n'
 report += f'This semester submissions:\t {len(ts_tocheck)} \n\n'
 
 report += f'Parameters:\n'
+report += f'THRESHOLD = {THRESHOLD:.2f}\n'
+report += f'THRESHOLD_PERCENTILE = {THRESHOLD_PERCENTILE}\n'
 report += f'NGRAM_MIN = {NGRAM_MIN}\n'
 report += f'NGRAM_MAX = {NGRAM_MAX}\n'
-report += f'THRESHOLD = {THRESHOLD:.2f}\n'
 report += f'MIN_DAYS_DISTANCE = {MIN_DAYS_DISTANCE}\n'
 report += f'ALLOWED_IMAGES_COPIED = {ALLOWED_IMAGES_COPIED}\n'
 report += f'MIN_PIXEL_SIZE = {MIN_PIXEL_SIZE}\n'
@@ -400,5 +401,6 @@ report += f'HASH_DISTANCE_THRESHOLD = {HASH_DISTANCE_THRESHOLD}\n\n'
 with codecs.open(reportfilename, 'w', 'utf-8') as f:
     f.write(report)          
 
-print('Done: see report.txt')
+print(f'Done: see {report_folder}/report.txt')
+print('Copy-Paste report.txt content to Excel table for interactive features.')
 
